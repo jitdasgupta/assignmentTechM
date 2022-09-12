@@ -1,0 +1,111 @@
+
+package com.example.cameradatabasesave
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Base64
+import android.view.View
+import android.widget.Button
+import android.widget.ImageView
+import android.widget.Toast
+import androidx.appcompat.app.AppCompatActivity
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.MalformedURLException
+import java.net.URL
+import java.util.Base64.getDecoder
+import java.util.concurrent.Executors
+
+class MainActivity : AppCompatActivity() {
+
+ //https://mobikul.com/android-getting-image-camera-uploading-web-server-multipart-connection-type/
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        val myExecutor = Executors.newSingleThreadExecutor()
+        val myHandler = Handler(Looper.getMainLooper())
+        var mImage: Bitmap?
+        val mWebPath = "https://media.geeksforgeeks.org/wp-content/uploads/20210224040124/JSBinCollaborativeJavaScriptDebugging6-300x160.png"
+
+        val btn_save = findViewById<Button>(R.id.btn_save);
+        val btn_view = findViewById<Button>(R.id.button);
+        val mImageView = findViewById<ImageView>(R.id.imageView);
+
+        btn_save.setOnClickListener(View.OnClickListener {
+
+            myExecutor.execute {
+                mImage = mLoad(mWebPath)
+                myHandler.post {
+                    if(mImage!=null){
+                        //mImageView.setImageBitmap(mImage)
+                        mSaveMediaToStorage(mImage!!)
+                    }
+                }
+            }
+        })
+
+        btn_view.setOnClickListener(View.OnClickListener {
+            getImageFromDB()
+        })
+    }
+
+    private fun getImageFromDB() {
+        val db = DBHelper(this, null)
+        val cur = db.getName()
+        cur!!.moveToFirst()
+        //val img: ByteArray = cur.getBlob(2)
+        val imgStng: String = cur.getString(1)
+        val decodedBytes: ByteArray = Base64.decode(imgStng,Base64.DEFAULT)
+        val orgImg:Bitmap = BitmapFactory.decodeByteArray(decodedBytes,0, decodedBytes.size)
+        val mImageView = findViewById<ImageView>(R.id.imageView);
+        mImageView.setImageBitmap(orgImg)
+    }
+
+
+    private fun mSaveMediaToStorage(mImage: Bitmap) {
+        val bos:ByteArrayOutputStream = ByteArrayOutputStream()
+        mImage.compress(Bitmap.CompressFormat.PNG, 100, bos)
+        val img = bos.toByteArray() //img need to encript in base 64
+        val encoded: String = Base64.encodeToString(img, Base64.DEFAULT)
+        val db = DBHelper(this, null)
+        val name = encoded
+        // calling method to add
+        // name to our database
+        db.addName(name, img)
+    }
+
+
+    private fun mLoad(string: String): Bitmap? {
+        val url: URL = mStringToURL(string)!!
+        val connection: HttpURLConnection?
+        try {
+            connection = url.openConnection() as HttpURLConnection
+            connection.connect()
+            val inputStream: InputStream = connection.inputStream
+            val bufferedInputStream = BufferedInputStream(inputStream)
+            return BitmapFactory.decodeStream(bufferedInputStream)
+        } catch (e: IOException) {
+            e.printStackTrace()
+            Toast.makeText(applicationContext, "Error", Toast.LENGTH_LONG).show()
+        }
+        return null
+    }
+
+    // Function to convert string to URL
+    private fun mStringToURL(string: String): URL? {
+        try {
+            return URL(string)
+        } catch (e: MalformedURLException) {
+            e.printStackTrace()
+        }
+        return null
+    }
+}
